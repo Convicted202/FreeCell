@@ -125,9 +125,9 @@ var canvas = document.getElementById("canvas"),
     go = new gameObject (freecell, dom, allCards, "#50915e");
     go.initBuffer (new Dimension(comConst.CANV_WIDTH, comConst.CANV_HEIGHT));
     
-    allCards.generateSequence();
+//    allCards.generateSequence();
    // allCards.animateNestInsert(context, new State(0, comConst.CARD_AREA_TOP), go);
-    allCards.moveToNests(new State(0, comConst.CARD_AREA_TOP - 100), go);
+    allCards.moveToNests(new State(400, comConst.CARD_AREA_TOP - 400), go);
     //cards[0].animateMoveTo(context, new State(300, 300), go);
 }
 
@@ -333,6 +333,10 @@ function Card (lear, value, column, row) {
             return false;
         }
         if (animationPos.diff === 0) {
+            if (animationPos.endPos.x < animationPos.startPos.x) {
+                amount = -amount;
+            }
+                
             x = animationPos.startPos.x + amount;
             if (x > animationPos.endPos.x) {
                 x = animationPos.endPos.x;
@@ -341,6 +345,10 @@ function Card (lear, value, column, row) {
             }
             y = amount * (animationPos.endPos.y - animationPos.startPos.y) / (animationPos.endPos.x - animationPos.startPos.x) + animationPos.startPos.y;
         } else {
+            if (animationPos.endPos.y < animationPos.startPos.y) {
+                amount = -amount;
+            }
+            
             y = animationPos.startPos.y + amount;
             if (y > animationPos.endPos.y) {
                 y = animationPos.endPos.y;
@@ -433,6 +441,9 @@ function Card (lear, value, column, row) {
     this.calcState = function setPosition (column, row) {
         return new State(((comConst.CANV_WIDTH - 8 * comConst.CARD_WIDTH) / 9) * (column + 1) + comConst.CARD_WIDTH * column, comConst.CARD_AREA_TOP + row * comConst.CARD_VERT_MARGIN);
     }
+    this.recalcState = function () {
+        this.state = this.calcState (this.column, this.row);
+    }
     this.state = this.calcState(column, row);
 //    this.pos = new State(this.state.x, this.state.y);
     
@@ -455,29 +466,60 @@ function Cards (context) {
     })(),
         root = this;
     
-    function changeCards (card1, card2) {
-        var tmp = card1;
-        card1 = card2;
-        card2 = tmp;
+    function changeCards (num1, num2) {
+        var col1 = cardList[num1].column, 
+            col2 = cardList[num2].column,
+            row1 = cardList[num1].row, 
+            row2 = cardList[num2].row,
+            tmp = cardList[num1];
+        cardList[num1]          = cardList[num2];
+        cardList[num1].row      = row1;
+        cardList[num1].column   = col1;
+        
+        cardList[num2]          = tmp;
+        cardList[num2].row      = row2;
+        cardList[num2].column   = col2;
     }
 
     this.ctx = context;
     this.cards = [
         [], [], [], [], [], [], [], []
     ];
+    this.initColumns = function () {
+        for (var i = 0; i < 52; i++) {
+            Array.prototype.push.call(this.cards[i % 8], cardList[i]);
+        }
+    }
+    this.isAllStopped = function () {
+        var i, j, counter = 0,
+            columnsHeight = ((52 / root.cards.length) ^ 0) + 1;
+        
+        for (i = 0; i < columnsHeight; i++)
+            for (j = 0; j < 8; j++) {
+                if (root.cards[j][i]) {
+                    if (!root.cards[j][i].isMoving) {  
+                        counter++;
+                    }
+                }
+            }
+        return counter === 52;
+    }
     this.generateSequence = function () {
         for (var i = 0; i < 52 * 52; i++) {
-            changeCards(cardList[getRandomInt(0, 51)], cardList[getRandomInt(0, 51)]);
+            changeCards(getRandomInt(0, 51), getRandomInt(0, 51));
         }
-        for (var i = 0; i < 52; i++) {
-            console.log(cardList[i].lear + '' + cardList[i].value + ", ");
-        }
+        this.initColumns();
+//        for (var i = 0; i < 52; i++) {
+//            console.log(cardList[i].lear + '' + cardList[i].value + ", ");
+//        }
     }
-    this.draw = function (ctx) {
-        for (var i = 0; i < cardList.length; i++) {
-            cardList[i].draw(ctx);
-        }
-    }
+    // this one is useless
+//    this.draw = function (ctx) {
+//        for (var i = 0; i < cardList.length; i++) {
+//            cardList[i].draw(ctx);
+//        }
+//    }
+    
 //    this.animateNestInsert = function (ctx, start, gObj) {
 //        var i,
 //            card;
@@ -487,32 +529,67 @@ function Cards (context) {
 //            card.animateMoveTo(ctx, card.calcState(card.column, card.row), gObj)
 //        }
 //    }
-    this.updateCardsMove = function () {
-        for (var i = 0; i < cardList.length; i++) {
-            cardList[i].updateAnimation();
-        }
-    }
+    
+    // this one is useless
+//    this.updateCardsMove = function () {
+//        for (var i = 0; i < cardList.length; i++) {
+//            cardList[i].updateAnimation();
+//        }
+//    }
     this.updateMoveToNest = function updateAndRedraw (gObj) {
-            requestAnimationFrame(function () {
-                updateAndRedraw(gObj);
-            });
-            
+            var i, j,
+                columnsHeight = ((52 / root.cards.length) ^ 0) + 1;
+        
+            if (!root.isAllStopped()) {
+                requestAnimationFrame(function () {
+                    updateAndRedraw(gObj);
+                });
+            }
             gObj.drawBG(root.ctx);
             gObj.freeCell.draw(root.ctx);
             gObj.DOM.draw(root.ctx);
-            for (var i = 0; i < cardList.length; i++) {
-                if (cardList[i].isMoving) {  
-                    cardList[i].updateAnimation();
+        
+            for (i = 0; i < columnsHeight; i++)
+                for (j = 0; j < 8; j++) {
+                    if (root.cards[j][i]) {
+                        if (root.cards[j][i].isMoving) {  
+                            root.cards[j][i].updateAnimation();
+                        }
+                        console.log(i, j);
+                        root.cards[j][i].draw(root.ctx);
+                    }
                 }
-                cardList[i].draw(root.ctx);
-            }
+        
+//            if root.isAllStopped() {
+//                window.cancelAnimationFrame();
+//            }
+//            for (var i = 0; i < cardList.length; i++) {
+//                if (cardList[i].isMoving) {  
+//                    cardList[i].updateAnimation();
+//                }
+//                cardList[i].draw(root.ctx);
+//            }
     }
     this.moveToNests = function (from, gObj) {
-        var i,
-            cardsLength = cardList.length;
-        for (i = 0; i < cardsLength; i++) {
-            cardList[i].initAnimation(from, cardList[i].calcState(cardList[i].column, cardList[i].row));
-        }
+        var i, j,
+            cardsLength = cardList.length,
+            columnsHeight = ((52 / root.cards.length) ^ 0) + 1,
+            curCard = null;
+        
+        this.generateSequence();
+        
+        for (i = 0; i < columnsHeight; i++)
+            for (j = 0; j < 8; j++) {
+                if (root.cards[j][i]) {
+                    curCard = root.cards[j][i];
+                    curCard.initAnimation(from, curCard.calcState(curCard.column, curCard.row));
+                }
+            }
+        
+//        for (i = 0; i < cardsLength; i++) {
+//            //cardList[i].recalcState();
+//            cardList[i].initAnimation(from, cardList[i].calcState(cardList[i].column, cardList[i].row));
+//        }
         
         this.updateMoveToNest(gObj);
     }
